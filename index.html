@@ -1,142 +1,122 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8">
   <title>Serial & Asset Sorter</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; margin: 1.5rem; background:#f7f7fb; color:#111; }
-    h1 { text-align:center; margin-bottom:0.2rem }
-    .container { max-width:900px; margin:0 auto; }
-    textarea { width:100%; min-height:140px; font-family:monospace; padding:0.6rem; border-radius:6px; border:1px solid #d0d0d8; box-sizing:border-box; background:white }
-    .controls { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; margin:0.6rem 0; }
-    button { padding:0.5rem 0.9rem; border-radius:6px; border: none; background:#1766d6; color:white; cursor:pointer; }
-    button.secondary { background:#6b7280; }
-    .output { display:flex; gap:1rem; margin-top:0.8rem; flex-wrap:wrap; }
-    .box { flex:1 1 45%; min-width:260px; }
-    .box h2 { margin:0 0 0.4rem 0; font-size:1.05rem; }
-    label { display:inline-flex; align-items:center; gap:0.4rem; cursor:pointer; }
-    .meta { margin-top:0.5rem; color:#374151; font-size:0.95rem; }
-    .actions { display:flex; gap:0.5rem; margin-top:0.4rem; }
-    .note { margin-top:0.8rem; font-size:0.92rem; color:#374151; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+      background: #fff;
+      color: #000;
+    }
+    h1 {
+      text-align: center;
+      color: #d00000; /* Red headline */
+    }
+    label {
+      font-weight: bold;
+    }
+    textarea {
+      width: 100%;
+      height: 150px;
+      margin-bottom: 1rem;
+      font-family: monospace;
+      border: 2px solid #000;
+      border-radius: 6px;
+      padding: 0.5rem;
+      resize: vertical;
+    }
+    button {
+      background-color: #d00000;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.75rem 1.5rem;
+      font-size: 1.1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.2s;
+      display: block;
+      margin: 1rem auto;
+    }
+    button:hover {
+      background-color: #a00000;
+      transform: scale(1.05);
+    }
+    .output {
+      display: flex;
+      gap: 2rem;
+      margin-top: 1rem;
+    }
+    .list-box {
+      flex: 1;
+    }
+    .list-box h2 {
+      margin-top: 0;
+      text-align: center;
+      background: #000;
+      color: #fff;
+      padding: 0.5rem;
+      border-radius: 6px;
+    }
+    .list-box textarea {
+      height: 200px;
+      background: #f8f8f8;
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Serial & Asset Sorter</h1>
-    <p class="note">Paste your mixed list (one item per line). This tool runs entirely in your browser — no files uploaded.</p>
+  <h1>Serial & Asset Sorter</h1>
+  <p>Paste your mixed list of barcodes below. The tool will split them into serial and asset numbers.</p>
 
-    <div class="controls">
-      <label><input type="checkbox" id="stripS"> Remove leading "s" (with optional separator) from serial numbers</label>
-      <button onclick="sortList()">Sort</button>
-      <button class="secondary" onclick="clearAll()">Clear</button>
-      <button class="secondary" onclick="pasteSample()">Paste sample</button>
-      <div style="margin-left:auto" id="counts">0 serial(s), 0 asset(s), 0 unknown</div>
+  <label>
+    <input type="checkbox" id="stripS"> Remove leading "s" from serial numbers
+  </label>
+  <br><br>
+  <textarea id="input" placeholder="Paste list here, one per line"></textarea>
+  <br>
+  <button onclick="sortList()">🚀 Sort List</button>
+
+  <div class="output">
+    <div class="list-box">
+      <h2>Serial Numbers</h2>
+      <textarea id="serials" readonly></textarea>
     </div>
-
-    <textarea id="input" placeholder="Examples:
-S12345
-S-12345
-123456   (asset)
-ASSET-001 (will go to Unknown)"></textarea>
-
-    <div class="output">
-      <div class="box">
-        <h2>Serial Numbers</h2>
-        <textarea id="serials" readonly></textarea>
-        <div class="actions">
-          <button onclick="copyText('serials')">Copy Serials</button>
-        </div>
-      </div>
-
-      <div class="box">
-        <h2>Asset Numbers</h2>
-        <textarea id="assets" readonly></textarea>
-        <div class="actions">
-          <button onclick="copyText('assets')">Copy Assets</button>
-        </div>
-      </div>
-
-      <div class="box">
-        <h2>Unknown / Other</h2>
-        <textarea id="unknown" readonly></textarea>
-        <div class="actions">
-          <button onclick="copyText('unknown')">Copy Unknown</button>
-        </div>
-      </div>
+    <div class="list-box">
+      <h2>Asset Numbers</h2>
+      <textarea id="assets" readonly></textarea>
     </div>
   </div>
 
   <script>
-    function sanitizeLine(str) {
-      return str.replace(/\uFEFF/g, '').replace(/\u00A0/g, ' ').trim();
-    }
-
     function sortList() {
-      const inputText = document.getElementById("input").value;
+      const inputText = document.getElementById("input").value.trim();
       const stripS = document.getElementById("stripS").checked;
-      const lines = inputText.split(/\r?\n/);
 
+      const lines = inputText.split(/\r?\n/);
       const serials = [];
       const assets = [];
-      const unknown = [];
 
-      // Pattern: starts with S, optional separators, then alphanumeric
-      const serialPattern = /^s[\-\s_:]*([A-Za-z0-9]+)$/i;
-
-      for (let raw of lines) {
-        let line = sanitizeLine(raw);
+      for (let line of lines) {
+        line = line.trim();
         if (!line) continue;
 
-        let m;
-        if ((m = line.match(serialPattern)) !== null) {
-          const core = m[1];
-          serials.push(stripS ? core : line);
-          continue;
-        }
-
-        if (/^\d+$/.test(line)) {
+        if (/^s\d+$/i.test(line)) {
+          // Serial number
+          let clean = stripS ? line.substring(1) : line;
+          serials.push(clean);
+        } else if (/^\d+$/.test(line)) {
+          // Asset number
           assets.push(line);
-          continue;
+        } else {
+          // If it doesn’t match either, drop into assets
+          assets.push(line);
         }
-
-        unknown.push(line);
       }
 
       document.getElementById("serials").value = serials.join("\n");
       document.getElementById("assets").value = assets.join("\n");
-      document.getElementById("unknown").value = unknown.join("\n");
-
-      document.getElementById("counts").textContent =
-        `${serials.length} serial(s), ${assets.length} asset(s), ${unknown.length} unknown`;
-    }
-
-    function copyText(id) {
-      const el = document.getElementById(id);
-      el.select();
-      navigator.clipboard?.writeText(el.value).then(
-        ()=>alert('Copied to clipboard'),
-        ()=>alert('Unable to copy')
-      );
-    }
-
-    function clearAll() {
-      document.getElementById("input").value = "";
-      document.getElementById("serials").value = "";
-      document.getElementById("assets").value = "";
-      document.getElementById("unknown").value = "";
-      document.getElementById("counts").textContent = "0 serial(s), 0 asset(s), 0 unknown";
-    }
-
-    function pasteSample() {
-      const sample = [
-        "S123456",
-        "S-000789",
-        "123456789",   // asset
-        "ASSET-XYZ01"  // unknown
-      ].join("\n");
-      document.getElementById("input").value = sample;
-      sortList();
     }
   </script>
 </body>
